@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/app.js",
+    "start_init": "node src/init_db.js",
+    "start_seeding": "node src/seed_db.js",
+    "start_archived": "node src/cron_jobs.js",
+    "init_all": "npm run start_init && npm run start_seeding && npm run start_archived && npm start"
   },
   "keywords": [],
   "author": "",
