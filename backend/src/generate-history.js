@@ -1,32 +1,35 @@
 const sqlite3 = require('sqlite3').verbose();
 const ExcelJS = require('exceljs');
-const xlsx = require('xlsx');
 const path = require('path');
 
 // Ouvrir la base de données
-const db = new sqlite3.Database('./src/database.db');
+const db = new sqlite3.Database(path.join(__dirname, 'db', 'database.db'));
 
 // Charger le fichier Excel des prestataires
-const workbook = xlsx.readFile(path.join(__dirname, 'Liste Prestataires.xlsx'));
-const sheetName = workbook.SheetNames[0];
-const prestatairesData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+const workbook = new ExcelJS.Workbook();
 
-// Définir les alias des bâtiments pour le site "Chevrolet" (non utilisé dans ce script)
-const buildingAliases = {
-    "A": "Bureaux",
-    "A+": "Bureaux Extension",
-    "B": "Transit",
-    "B+": "Transit Extension",
-    "C": "Stockage",
-    "D": "Admin Stockage/ Douane",
-    "E": "Atelier",
-    "F": "Pavillon"
-};
+workbook.xlsx.readFile(path.join(__dirname, '..', '..', 'Liste Prestataires.xlsx'))
+    .then(() => {
+        const worksheet = workbook.getWorksheet(1);
+        const prestatairesData = [];
 
-// Fonction pour récupérer les données des prestataires
-function getPrestataires(callback) {
-    callback(prestatairesData);
-}
+        worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+            if (rowNumber > 1) { // Ignorer l'en-tête
+                const rowData = {
+                    Nature: row.getCell(1).value,
+                    Prestataire: row.getCell(2).value,
+                    'Periodicité(Mois)': row.getCell(3).value,
+                    Site: row.getCell(4).value,
+                };
+                prestatairesData.push(rowData);
+            }
+        });
+
+        generateHistorique(prestatairesData);
+    })
+    .catch(err => {
+        console.error('Error reading Excel file:', err);
+    });
 
 // Fonction pour générer un historique des interventions
 function generateHistorique(prestataires) {
@@ -52,14 +55,11 @@ function generateHistorique(prestataires) {
         }
     });
 
-    return historique;
+    saveHistoriqueToExcel(historique);
 }
 
-// Récupérer les données et générer le fichier d'historique
-getPrestataires((prestataires) => {
-    const historique = generateHistorique(prestataires);
-
-    // Créer un nouveau classeur
+// Fonction pour sauvegarder l'historique dans un fichier Excel
+function saveHistoriqueToExcel(historique) {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Historique Interventions');
 
@@ -95,4 +95,4 @@ getPrestataires((prestataires) => {
             console.log('Database closed successfully');
         }
     });
-});
+}
