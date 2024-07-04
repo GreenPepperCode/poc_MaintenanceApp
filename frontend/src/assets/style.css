@@ -1,0 +1,87 @@
+:root {
+    /* DHL Colors */
+    --dhl-yellow: #FFCC00;
+    --dhl-red: #D40511;
+    --dhl-black: #000000;
+    --dhl-white: #FFFFFF;
+  }
+  
+  /* Global Styles */
+  body {
+    font-family: Arial, sans-serif;
+    background-color: var(--dhl-white);
+    color: var(--dhl-black);
+    margin: 0;
+    padding: 0;
+  }
+  
+  nav {
+    background-color: var(--dhl-red);
+    color: var(--dhl-white);
+    padding: 1rem;
+  }
+  
+  nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: space-around;
+    padding: 0;
+  }
+  
+  nav li {
+    margin: 0 1rem;
+  }
+  
+  nav a {
+    color: var(--dhl-white);
+    text-decoration: none;
+  }
+  
+  button {
+    background-color: var(--dhl-yellow);
+    border: none;
+    color: var(--dhl-black);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  
+  button:hover {
+    background-color: var(--dhl-red);
+    color: var(--dhl-white);
+  }
+  
+  .modal {
+    display: block;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  
+  .modal-content {
+    background-color: var(--dhl-white);
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid var(--dhl-black);
+    width: 80%;
+  }
+  
+  .close {
+    color: var(--dhl-black);
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+  }
+  
+  .close:hover,
+  .close:focus {
+    color: var(--dhl-red);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  
