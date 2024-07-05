@@ -33,50 +33,79 @@ function normalizeName(name) {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+// Fonction pour convertir la périodicité en nombre de mois
+function convertPeriodicity(periodicity) {
+  const periods = {
+    '1 mois': 1,
+    '3 mois': 3,
+    '6 mois': 6,
+    '12 mois': 12
+  };
+  return periods[periodicity.toLowerCase()] || 0;
+}
+
+// Fonction pour ajouter des mois à une date
+function addMonthsToDate(date, months) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result.toISOString().split('T')[0]; // Convertir la date en format ISO
+}
+
 // Fonction pour insérer les données à partir du fichier Excel
 function seedFromExcel() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const excelPath = 'C:\\Users\\yzi\\Desktop\\Perso\\poc_MaintenanceApp\\backend\\Historique_Interventions_Généré.xlsx';
     const workbook = new ExcelJS.Workbook();
-    
-    workbook.xlsx.readFile(excelPath).then(() => {
+
+    try {
+      await workbook.xlsx.readFile(excelPath);
       const worksheet = workbook.getWorksheet(1);
       const insertMaintenance = db.prepare(`
-        INSERT INTO Maintenance (nature, provider_id, periodicity, maintenance_date, maintenance_time, status, creation_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Maintenance (nature, provider_id, periodicity, maintenance_date, maintenance_time, status, creation_date, targeted_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber > 1) { // Ignorer l'en-tête
-          const [date, nature, provider, periodicity] = row.values.slice(1);
-          const maintenanceDate = new Date(date).toISOString().split('T')[0]; // Convertir la date
-          const maintenanceTime = '00:00:00';
-          const status = 'effectuée'; // Toutes les interventions de l'historique ont eu lieu
-          const creationDate = new Date().toISOString().split('T')[0]; // Date actuelle
+      for (const row of worksheet.getRows(2, worksheet.rowCount - 1)) {
+        const [date, nature, provider, periodicity] = row.values.slice(1);
+        const maintenanceDate = new Date(date).toISOString().split('T')[0]; // Convertir la date
+        const maintenanceTime = '00:00:00';
+        const status = 'effectuée'; // Toutes les interventions de l'historique ont eu lieu
+        const creationDate = new Date().toISOString().split('T')[0]; // Date actuelle
 
-          // Normaliser le nom du fournisseur
-          const normalizedProvider = normalizeName(provider);
+        // Normaliser le nom du fournisseur
+        const normalizedProvider = normalizeName(provider);
 
-          // Correction de la logique pour trouver le provider_id
-          db.get('SELECT id FROM Annuaire WHERE lower(trim(name)) = ?', [normalizedProvider], (err, row) => {
-            if (err) {
-              console.error('Error querying Annuaire table:', err);
-              return reject(err);
-            }
+        // Convertir la périodicité
+        const periodicityInMonths = convertPeriodicity(periodicity);
 
-            if (row) {
-              const providerId = row.id;
-              insertMaintenance.run(nature, providerId, periodicity, maintenanceDate, maintenanceTime, status, creationDate, (err) => {
-                if (err) {
-                  console.error('Error inserting maintenance data:', err);
-                }
-              });
-            } else {
-              console.error(`Provider not found in Annuaire: ${provider}`);
-            }
+        // Calculer la targeted_date
+        const targetedDate = addMonthsToDate(maintenanceDate, periodicityInMonths);
+
+        // Recherche de l'ID du fournisseur et insertion des données
+        try {
+          const row = await new Promise((resolve, reject) => {
+            db.get('SELECT id FROM Annuaire WHERE lower(trim(name)) = ?', [normalizedProvider], (err, row) => {
+              if (err) return reject(err);
+              resolve(row);
+            });
           });
+
+          if (row) {
+            const providerId = row.id;
+            await new Promise((resolve, reject) => {
+              insertMaintenance.run(nature, providerId, periodicityInMonths, maintenanceDate, maintenanceTime, status, creationDate, targetedDate, (err) => {
+                if (err) return reject(err);
+                resolve();
+              });
+            });
+          } else {
+            console.error(`Provider not found in Annuaire: ${provider}`);
+          }
+        } catch (err) {
+          console.error('Error querying Annuaire table:', err);
+          return reject(err);
         }
-      });
+      }
 
       insertMaintenance.finalize((err) => {
         if (err) {
@@ -87,10 +116,11 @@ function seedFromExcel() {
           resolve();
         }
       });
-    }).catch(err => {
+
+    } catch (err) {
       console.error('Error reading Excel file:', err);
       reject(err);
-    });
+    }
   });
 }
 

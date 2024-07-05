@@ -1,118 +1,81 @@
-const tf = require('@tensorflow/tfjs-node');
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
+const path = require('path');
+const tf = require('@tensorflow/tfjs-node');
 
-// Connexion à la base de données
-const db = new sqlite3.Database(path.join(__dirname, '..', 'db', 'database.db'));
+// Chemin du répertoire de modèles
+const modelsDir = path.join(__dirname, 'models', 'maintenance_model');
 
-// Entraîner le modèle
-async function trainModel() {
-    const data = await loadData();
-    
-    // Vérifier si les données sont valides
-    if (!data || data.length === 0) {
-        throw new Error("No data available for training");
-    }
+// Vérifiez si le répertoire existe, sinon créez-le
+if (!fs.existsSync(modelsDir)) {
+    fs.mkdirSync(modelsDir, { recursive: true });
+}
 
-    const { inputs, labels } = preprocessData(data);
+// Générer un nom de fichier unique pour le modèle
+const timestamp = new Date().toISOString().replace(/[-:.]/g, "");
+const modelName = `model_${timestamp}`;
+const modelPath = path.join(modelsDir, modelName);
 
-    if (!inputs || inputs.length === 0 || !labels || labels.length === 0) {
-        throw new Error("Invalid input or label data");
-    }
+// Fonction pour normaliser les dates
+function normalizeDate(date) {
+    const epoch = new Date(1970, 0, 1);
+    return (new Date(date) - epoch) / (1000 * 60 * 60 * 24); // convertir en jours depuis l'époque
+}
 
+// Fonction pour créer le modèle
+function createModel() {
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [inputs[0].length], kernelRegularizer: tf.regularizers.l2({l2: 0.01}) }));
-    model.add(tf.layers.dropout({ rate: 0.3 }));
-    model.add(tf.layers.dense({ units: 64, activation: 'relu', kernelRegularizer: tf.regularizers.l2({l2: 0.01}) }));
-    model.add(tf.layers.dropout({ rate: 0.3 }));
-    model.add(tf.layers.dense({ units: 32, activation: 'relu', kernelRegularizer: tf.regularizers.l2({l2: 0.01}) }));
-    model.add(tf.layers.dropout({ rate: 0.3 }));
-    model.add(tf.layers.dense({ units: 16, activation: 'relu', kernelRegularizer: tf.regularizers.l2({l2: 0.01}) }));
+    model.add(tf.layers.dense({ inputShape: [2], units: 64, activation: 'relu' }));
+    model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1 }));
 
-    const optimizer = tf.train.adam(0.001);  // Learning rate ajusté
-    model.compile({ optimizer: optimizer, loss: 'meanSquaredError' });
+    model.compile({
+        optimizer: tf.train.adam(),
+        loss: 'meanSquaredError',
+        metrics: ['mae'],
+    });
 
-    await model.fit(tf.tensor2d(inputs), tf.tensor2d(labels, [labels.length, 1]), {
-        epochs: 800,  // Réduction du nombre d'époques
-        batchSize: 32,  // Utilisation d'un batch size
-        validationSplit: 0.5,
-        callbacks: {
-            onEpochEnd: (epoch, logs) => {
-                console.log(`Epoch ${epoch}: loss = ${logs.loss}`);
-            }
+    return model;
+}
+
+async function trainModel() {
+    const sqlite3 = require('sqlite3').verbose();
+    const dbPath = path.join(__dirname, '../db/database.db');
+    const db = new sqlite3.Database(dbPath);
+
+    db.all('SELECT maintenance_date, periodicity, targeted_date FROM Maintenance', async (err, rows) => {
+        if (err) {
+            console.error('Error fetching data from database:', err);
+            return;
         }
-    });
 
-    const metrics = await evaluateModel(model, inputs, labels);
+        // Préparer les données
+        const inputs = rows.map(row => [
+            normalizeDate(row.maintenance_date),
+            row.periodicity
+        ]);
+        const labels = rows.map(row => normalizeDate(row.targeted_date));
 
-    // Créer le répertoire models s'il n'existe pas
-    const modelDir = path.join(__dirname, 'models');
-    if (!fs.existsSync(modelDir)) {
-        fs.mkdirSync(modelDir);
-    }
+        const inputTensor = tf.tensor2d(inputs);
+        const labelTensor = tf.tensor2d(labels, [labels.length, 1]);
 
-    // Sauvegarder le modèle après entraînement
-    await model.save(`file://${path.join(modelDir, 'latest')}`);
+        const model = createModel();
 
-    return metrics;
-}
-
-// Évaluer le modèle
-async function evaluateModel(model, inputs, labels) {
-    const predictions = model.predict(tf.tensor2d(inputs)).dataSync();
-    const mse = tf.losses.meanSquaredError(tf.tensor1d(labels), tf.tensor1d(predictions)).dataSync()[0];
-
-    return { mse, rmse: Math.sqrt(mse) };
-}
-
-// Charger les données
-async function loadData() {
-    return new Promise((resolve, reject) => {
-        db.all('SELECT * FROM Maintenance', [], (err, rows) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(rows);
-            }
+        // Entraîner le modèle
+        const history = await model.fit(inputTensor, labelTensor, {
+            epochs: 350,
+            validationSplit: 0.2,
+            callbacks: [
+                tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: 20 })
+            ]
         });
+
+        // Sauvegarder le modèle avec le nom de fichier unique
+        await model.save(`file://${modelPath}`);
+        console.log(`Model trained and saved as ${modelName}`);
+
+        db.close();
     });
 }
 
-// Prétraiter les données
-function preprocessData(data) {
-    // Vérifiez si les données sont valides avant de continuer
-    if (!data || data.length === 0) {
-        throw new Error("No data available for preprocessing");
-    }
-
-    const inputs = data.map(d => [d.provider_id, d.periodicity]);
-    const labels = data.map(d => d.status === 'Completed' ? 1 : 0);
-
-    return { inputs, labels };
-}
-
-// Sauvegarder le modèle
-async function saveModel() {
-    const srcPath = path.join(__dirname, 'models', 'latest');
-    const destPath = path.join(__dirname, 'models', `model_${Date.now()}`);
-
-    if (!fs.existsSync(srcPath)) {
-        throw new Error('No trained model found to save');
-    }
-
-    fs.copyFileSync(srcPath, destPath);
-}
-
-// Charger un modèle spécifique
-async function loadModel(modelName) {
-    const modelPath = path.join(__dirname, 'models', modelName);
-    if (!fs.existsSync(modelPath)) {
-        throw new Error(`Model ${modelName} does not exist`);
-    }
-
-    // Implémentez la logique pour charger et utiliser le modèle
-}
-
-module.exports = { trainModel, evaluateModel, saveModel, loadModel };
+// Appeler la fonction d'entraînement
+trainModel().catch(console.error);

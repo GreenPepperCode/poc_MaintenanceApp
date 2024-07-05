@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS Maintenance (
     id INTEGER PRIMARY KEY,
     nature TEXT,
     provider_id INTEGER,
-    periodicity TEXT,
+    periodicity INTEGER,
     building_id INTEGER,
     maintenance_date DATE,
     maintenance_time TIME,
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS Maintenance (
     creation_time TIME,
     modification_date DATE,
     modification_time TIME,
+    targeted_date DATE,
     FOREIGN KEY(provider_id) REFERENCES Annuaire(id),
     FOREIGN KEY(building_id) REFERENCES Building(id)
 );
@@ -38,7 +39,7 @@ CREATE TABLE IF NOT EXISTS Archives (
     id INTEGER PRIMARY KEY,
     nature TEXT,
     provider_id INTEGER,
-    periodicity TEXT,
+    periodicity INTEGER,
     building_id INTEGER,
     maintenance_date DATE,
     maintenance_time TIME,

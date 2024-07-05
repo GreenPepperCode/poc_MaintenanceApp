@@ -4,7 +4,6 @@ const path = require('path');
 // Connexion à la base de données
 const db = new sqlite3.Database(path.join(__dirname, '..', 'db', 'database.db'));
 
-// Obtenir toutes les maintenances
 exports.getAllMaintenances = (req, res) => {
     const sql = 'SELECT * FROM Maintenance';
     db.all(sql, [], (err, rows) => {
@@ -19,7 +18,6 @@ exports.getAllMaintenances = (req, res) => {
     });
 };
 
-// Ajouter une maintenance
 exports.addMaintenance = (req, res) => {
     const { nature, provider_id, periodicity, building_id, maintenance_date, maintenance_time, maintenance_period, status, reason, cart_number, creation_date, creation_time, modification_date, modification_time } = req.body;
     const sql = 'INSERT INTO Maintenance (nature, provider_id, periodicity, building_id, maintenance_date, maintenance_time, maintenance_period, status, reason, cart_number, creation_date, creation_time, modification_date, modification_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
@@ -36,7 +34,6 @@ exports.addMaintenance = (req, res) => {
     });
 };
 
-// Mettre à jour une maintenance
 exports.updateMaintenance = (req, res) => {
     const { nature, provider_id, periodicity, building_id, maintenance_date, maintenance_time, maintenance_period, status, reason, cart_number, creation_date, creation_time, modification_date, modification_time } = req.body;
     const { id } = req.params;
@@ -54,7 +51,6 @@ exports.updateMaintenance = (req, res) => {
     });
 };
 
-// Supprimer une maintenance
 exports.deleteMaintenance = (req, res) => {
     const { id } = req.params;
     const sql = 'DELETE FROM Maintenance WHERE id = ?';

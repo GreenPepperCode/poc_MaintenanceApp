@@ -4,7 +4,6 @@ const path = require('path');
 // Connexion à la base de données
 const db = new sqlite3.Database(path.join(__dirname, '..', 'db', 'database.db'));
 
-// Obtenir tous les prestataires
 exports.getAllProviders = (req, res) => {
     const sql = 'SELECT * FROM Annuaire';
     db.all(sql, [], (err, rows) => {
@@ -19,7 +18,6 @@ exports.getAllProviders = (req, res) => {
     });
 };
 
-// Ajouter un prestataire
 exports.addProvider = (req, res) => {
     const { name, phone, email } = req.body;
     const sql = 'INSERT INTO Annuaire (name, phone, email) VALUES (?, ?, ?)';
@@ -31,12 +29,11 @@ exports.addProvider = (req, res) => {
         }
         res.json({
             "message": "success",
-            "data": { id: this.lastID, name, phone, email }
+            "data": { id: this.lastID, ...req.body }
         });
     });
 };
 
-// Mettre à jour un prestataire
 exports.updateProvider = (req, res) => {
     const { name, phone, email } = req.body;
     const { id } = req.params;
@@ -49,12 +46,11 @@ exports.updateProvider = (req, res) => {
         }
         res.json({
             "message": "success",
-            "data": { id, name, phone, email }
+            "data": { id, ...req.body }
         });
     });
 };
 
-// Supprimer un prestataire
 exports.deleteProvider = (req, res) => {
     const { id } = req.params;
     const sql = 'DELETE FROM Annuaire WHERE id = ?';

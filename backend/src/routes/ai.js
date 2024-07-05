@@ -7,6 +7,6 @@ router.post('/train', aiController.trainModel);
 router.get('/metrics', aiController.getMetrics);
 router.post('/save', aiController.saveModel);
 router.get('/models', aiController.getModels);
-router.post('/use', aiController.useModel);
+router.post('/use', aiController.predictMaintenance);
 
 module.exports = router;
